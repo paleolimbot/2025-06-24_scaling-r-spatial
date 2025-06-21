@@ -1,0 +1,5 @@
+_extensions/
+*.html
+microsoft-buildings*
+.DS_Store
+.Rhistory

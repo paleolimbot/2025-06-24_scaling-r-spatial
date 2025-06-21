@@ -1,0 +1,123 @@
+---
+title: "Scaling the r-spatial ecosystem for the modern composable data pipeline"
+subtitle: ""
+author: "Dewey Dunnington, Wherobots Inc."
+institute: ""
+format:
+  revealjs:
+    embed-resources: true
+    title-slide-attributes:
+      data-background-image: bg/wb0.png
+      data-background-color: "#2556BB"
+---
+
+```{r setup, include = FALSE}
+library(sf)
+```
+
+## Me {background-image="bg/wb4.png"}
+
+::: {style="text-align: center;"}
+
+![](logo/arrow-hex.png){width="20%"} ![](logo/nanoarrow-hex.png){width="20%"} ![](logo/geoarrow_logo.png){width="20%"} ![](logo/sf.gif){width="20%"}
+
+:::
+
+::: {style="text-align: center;"}
+
+![](logo/sedona_logo.png){width="70%"}
+
+:::
+
+::: {style="text-align: center;"}
+
+![](logo/wherobots.png){width="50%"}
+
+:::
+
+## duckdb-geography {background-image="bg/wb3.png"}
+
+
+## {background="#2556BB"}
+
+<br/>
+
+<br/>
+
+::: {style="text-align: center;"}
+
+### Data Types
+
+<br/>
+
+### Examples
+
+<br/>
+
+### The Future
+
+:::
+
+## Data types: Geography {background-image="bg/wb3.png"}
+
+A Geography is a Geometry whose edges follow a the shortest distance on the Earth rather than the shortest distance in Cartesian/planar space
+
+If you want to represent something like Fiji, Russia, or Antarctica without splitting it into pieces, you need Geography!
+
+## Data types: Geography {background-image="bg/wb3.png"}
+
+:::: {.columns}
+
+::: {.column width="50%"}
+
+Spherely array:
+
+- Order is kept
+- In memory data structures
+- Requires explicit parallelization
+
+:::
+
+::: {.column width="50%"}
+
+DuckDB Geography:
+
+- Order is sometimes kept
+- Serialized data structures (can be slower)
+- Automatic parallelization
+
+:::
+
+::::
+
+## {background="#2556BB"}
+
+<br/>
+
+<br/>
+
+::: {style="text-align: center;"}
+
+### Paralellizing a trivial workflow
+
+<br/>
+
+### Partitioning
+
+<br/>
+
+### Joining
+
+:::
+
+## The Future
+
+- Better integration with `spatial` (e.g., `geog::GEOMETRY`)
+- Aggregators
+- Import/Export/Fix spherical geometry
+- Something else based on user experience?
+
+## duckdb-geography {background-image="bg/wb3.png"}
+
+- [dewey.dunnington.ca/slides/rspatial2025](https://dewey.dunnington.ca/slides/rspatial2025)
+- {{< fa brands github >}} [paleolimbot/duckdb-geography](https://github.com/paleolimbot/2025-06-24_scaling-r-spatial)
