@@ -107,7 +107,6 @@ system.time({
 
 ```{r}
 #| echo: true
-#| eval: false
 system.time({
   # Read the CRS of the source
   elevation_crs <- st_layers("data/ns-water_elevation.fgb")$crs[[1]]
@@ -125,6 +124,51 @@ system.time({
 })
 #>    user  system elapsed
 #>   7.146   0.478   7.641
+```
+
+## sf for big(ger) data: `st_join()`
+
+Let's look at the interaction of the elevation points with some lakes.
+
+```{r}
+lakes <- read_sf("data/ns-water_water-poly.fgb")
+lakes <- lakes |>
+  filter(st_intersects(lakes, bounds_poly[[1]], sparse = FALSE)) |>
+  st_transform(st_crs(elevation))
+```
+
+## sf for big(ger) data: `st_join()`
+
+If we wanted to find the mean elevation of each lake, we might do something like this:
+
+```{r}
+#| echo: true
+#| eval: false
+system.time({
+  lakes$mean_elev <- lakes$geometry |>
+    map_dbl(~{
+      elev_is_relevant <- st_intersects(elevation, .x, sparse = FALSE)
+      mean(elevation$ZVALUE[elev_is_relevant])
+    })
+})
+#>    user  system elapsed
+#> 220.054   3.715 223.819
+```
+
+## sf for big(ger) data: `st_join()`
+
+What we want here is a join!
+
+```{r}
+system.time({
+  lakes |>
+    mutate(row_id = row_number()) |>
+    st_join(elevation, join = st_intersects) |>
+    group_by(row_id) |>
+    summarise(mean_elev = mean(ZVALUE.y))
+})
+#>    user  system elapsed
+#>  10.418   0.582  11.004
 ```
 
 ## Data types: Geography {background-image="bg/wb3.png"}
