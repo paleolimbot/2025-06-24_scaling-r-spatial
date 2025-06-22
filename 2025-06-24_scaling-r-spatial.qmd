@@ -1,6 +1,6 @@
 ---
 title: "Scaling the r-spatial ecosystem"
-subtitle: "for the modern composable data pipeline"
+subtitle: "...for the modern composable data pipeline"
 author: "Dewey Dunnington (@paleolimbot)"
 institute: ""
 format:
@@ -12,6 +12,7 @@ format:
 ---
 
 ```{r setup, include = FALSE}
+library(tidyverse)
 library(sf)
 ```
 
@@ -39,7 +40,7 @@ library(sf)
 
 Maintainer of s2, wk, geos, geoarrow, nanoarrow, tidypaleo, ggspatial, adbc(drivermanager|sqlite|postgresql)
 
-Contributor to qgisprocess, duckdb, arrow, ggplot2 (a long time ago!)
+Contributor to qgisprocess, arrow, ggplot2
 
 ## Places to find/ask/share {background-image="bg/wb3.png"}
 
@@ -69,11 +70,62 @@ I'm now a low-level nuts-and-bolts developer a few years removed from day-to-day
 
 :::
 
-## sf for big(ger) data: reading
+## sf for big(ger) data: filter-on-read
 
-A Geography is a Geometry whose edges follow a the shortest distance on the Earth rather than the shortest distance in Cartesian/planar space
+Say you have a data source and an area you're interested in:
 
-If you want to represent something like Fiji, Russia, or Antarctica without splitting it into pieces, you need Geography!
+```{r}
+bounds_lonlat <- st_bbox(
+  c(xmin = -64.6418, xmax = -64.2868, ymin = 44.8473, ymax = 45.0151),
+  crs = st_crs("OGC:CRS84")
+)
+```
+
+## sf for big(ger) data: filter-on-read
+
+```{r}
+#| echo: true
+#| eval: false
+system.time({
+  # Read the file
+  elevation <- read_sf("data/ns-water_elevation.fgb")
+
+  # Transform the bounds to the CRS of the source
+  bounds_poly <- bounds_lonlat |>
+    st_transform(st_crs(elevation)) |>
+    st_as_sfc()
+
+  # Filter to area of interest
+  elevation <- elevation |>
+    filter(st_intersects(elevation, bounds_poly[[1]], sparse = FALSE))
+})
+#>    user  system elapsed
+#>  67.656   5.454  74.056
+```
+
+## sf for big(ger) data: filter-on-read
+
+```{r}
+#| echo: true
+#| eval: false
+system.time({
+  # Read the CRS of the source
+  elevation_crs <- st_layers("data/ns-water_elevation.fgb")$crs[[1]]
+
+  # Transform the bounds to the CRS of the source
+  bounds_poly <- bounds_lonlat |>
+    st_transform(elevation_crs) |>
+    st_as_sfc()
+
+  # Read just the data you need
+  elevation <- st_read(
+    "data/ns-water_elevation.fgb",
+    wkt_filter = st_as_text(bounds_poly)
+  )
+})
+#>    user  system elapsed
+#>   7.146   0.478   7.641
+```
 
 ## Data types: Geography {background-image="bg/wb3.png"}
 
@@ -128,7 +180,24 @@ DuckDB Geography:
 - Import/Export/Fix spherical geometry
 - Something else based on user experience?
 
-## duckdb-geography {background-image="bg/wb3.png"}
+## Scaling r-spatial {background-image="bg/wb3.png"}
 
 - [dewey.dunnington.ca/slides/rspatial2025](https://dewey.dunnington.ca/slides/rspatial2025)
 - {{< fa brands github >}} [paleolimbot/duckdb-geography](https://github.com/paleolimbot/2025-06-24_scaling-r-spatial)
+
+## Getting the data {background-image="bg/wb3.png"}
+
+```{r}
+#| echo: true
+#| eval: false
+curl::curl_download(
+  "https://github.com/geoarrow/geoarrow-data/releases/download/v0.2.0/ns-water_elevation.fgb",
+  "data/ns-water_elevation.fgb"
+)
+
+curl::curl_download(
+  "https://github.com/geoarrow/geoarrow-data/releases/download/v0.2.0/ns-water_water-poly.fgb",
+  "data/ns-water_water-poly.fgb"
+)
+```
+
