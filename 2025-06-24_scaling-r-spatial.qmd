@@ -62,7 +62,7 @@ I'm now a low-level nuts-and-bolts developer a few years removed from day-to-day
 
 <br/>
 
-### Beyond sf (s2, geos, wk, and more)
+### Beyond sf (terra, s2, geos, wk, and more)
 
 <br/>
 
@@ -70,7 +70,7 @@ I'm now a low-level nuts-and-bolts developer a few years removed from day-to-day
 
 :::
 
-## sf for big(ger) data: filter-on-read
+## sf for big(ger) data: filter-on-read {background-image="bg/wb3.png"}
 
 Say you have a data source and an area you're interested in:
 
@@ -81,7 +81,7 @@ bounds_lonlat <- st_bbox(
 )
 ```
 
-## sf for big(ger) data: filter-on-read
+## sf for big(ger) data: filter-on-read {background-image="bg/wb3.png"}
 
 ```{r}
 #| echo: true
@@ -103,7 +103,7 @@ system.time({
 #>  67.656   5.454  74.056
 ```
 
-## sf for big(ger) data: filter-on-read
+## sf for big(ger) data: filter-on-read {background-image="bg/wb3.png"}
 
 ```{r}
 #| echo: true
@@ -126,7 +126,7 @@ system.time({
 #>   7.146   0.478   7.641
 ```
 
-## sf for big(ger) data: `st_join()`
+## sf for big(ger) data: `st_join()` {background-image="bg/wb3.png"}
 
 Let's look at the interaction of the elevation points with some lakes.
 
@@ -137,7 +137,7 @@ lakes <- lakes |>
   st_transform(st_crs(elevation))
 ```
 
-## sf for big(ger) data: `st_join()`
+## sf for big(ger) data: `st_join()` {background-image="bg/wb3.png"}
 
 If we wanted to find the mean elevation of each lake, we might do something like this:
 
@@ -155,7 +155,7 @@ system.time({
 #> 220.054   3.715 223.819
 ```
 
-## sf for big(ger) data: `st_join()`
+## sf for big(ger) data: `st_join()` {background-image="bg/wb3.png"}
 
 What we want here is a join!
 
@@ -171,7 +171,133 @@ system.time({
 #>  10.418   0.582  11.004
 ```
 
-## Data types: Geography {background-image="bg/wb3.png"}
+## Beyond sf: terra {background-image="bg/wb3.png"}
+
+Terra implements reads with extents:
+
+```{r}
+library(terra)
+
+system.time({
+  elevation <- vect("data/ns-water_elevation.fgb", proxy = TRUE)
+  extent <- project(vect(bounds_lonlat |> st_as_sfc()), crs(elevation))
+  elevation <- vect("data/ns-water_elevation.fgb", extent = extent)
+})
+#>    user  system elapsed
+#>   5.925   0.477   6.407
+```
+
+...but not spatial joins (primarily targeted at raster). The API is also not based on the `data.frame` and converting from terra to a data frame can be expensive.
+
+## Beyond sf: wk {background-image="bg/wb3.png"}
+
+```{r}
+library(vapour)
+library(geos)
+
+system.time({
+  elevation <- vapour_read_geometry("data/ns-water_elevation.fgb") |>
+    geos_read_wkb(crs = st_crs(lakes))
+})
+#>    user  system elapsed
+#>   6.633   1.162   8.539
+```
+
+```{r}
+system.time({
+  index <- geos_strtree(elevation)
+  lakes$geometry |>
+    as_geos_geometry() |>
+    map_dbl(~{
+      elevation_candidates <- elevation[geos_strtree_query(index, .x)[[1]]]
+      elevations <- elevation_candidates[geos_prepared_intersects(elevation_candidates, .x)]
+      mean(geos_z(elevations))
+    })
+})
+#>    user  system elapsed
+#>   2.521   0.021   2.542
+```
+
+## Driving spatial databases: DuckDB {background-image="bg/wb3.png"}
+
+```{r}
+library(duckdb)
+library(geoarrow)
+
+con <- dbConnect(duckdb::duckdb())
+dbExecute(con, "LOAD spatial")
+dbExecute(con, "CALL register_geoarrow_extensions()")
+```
+
+```{r}
+bounds_poly |> st_as_text()
+dbExecute(
+  con,
+  glue::glue("CREATE TABLE IF NOT EXISTS lakes AS
+   SELECT * FROM 'data/ns-water_water-poly.fgb'
+   WHERE ST_Intersects(geom, ST_GeomFromText('{bounds_poly |> st_as_text()}'))")
+)
+dbExecute(con, "CREATE TABLE IF NOT EXISTS elevation AS SELECT * FROM 'data/ns-water_elevation.fgb'")
+```
+
+```{r}
+dbGetQuery(con, "
+  SELECT objectid, AVG(ST_Z(elevation.geom)) FROM lakes
+  LEFT JOIN elevation ON ST_Intersects(lakes.geom, elevation.geom)
+  GROUP BY objectid
+")
+```
+
+## Driving spatial databases: ADBC + PostGIS {background-image="bg/wb3.png"}
+
+```{r}
+library(adbcdrivermanager)
+
+con <- adbc_database_init(
+  adbcpostgresql::adbcpostgresql(),
+  uri = "postgres://localhost:5432?user=postgres&password=password"
+) |>
+  adbc_connection_init()
+```
+
+## Driving spatial databases: ADBC + PostGIS {background-image="bg/wb3.png"}
+
+```{r}
+con |>
+  execute_adbc("CREATE TABLE IF NOT EXISTS lakes (objectid float8, geometry GEOMETRY)")
+lakes |>
+  as_tibble() |>
+  transmute(objectid = OBJECTID, geometry = wk::as_wkb(geometry)) |>
+  write_adbc(con, "lakes", mode = "append")
+```
+
+## Driving spatial databases: ADBC + PostGIS {background-image="bg/wb3.png"}
+
+```{r}
+con |>
+  execute_adbc("CREATE TABLE IF NOT EXISTS elevation (geometry GEOMETRY)")
+tibble(geometry = elevation |> wk::as_wkb()) |>
+  write_adbc(con, "elevation", mode = "append")
+```
+
+## Driving spatial databases: ADBC + PostGIS {background-image="bg/wb3.png"}
+
+```{r}
+con |>
+  execute_adbc("CREATE INDEX elevation_idx ON elevation USING gist(geometry)")
+```
+
+```{r}
+con |>
+  read_adbc("
+    SELECT objectid, AVG(ST_Z(elevation.geometry)) FROM lakes
+    LEFT JOIN elevation ON ST_Intersects(lakes.geometry, elevation.geometry)
+    GROUP BY objectid
+  ") |>
+  as_tibble()
+```
+
+## foofy
 
 :::: {.columns}
 
