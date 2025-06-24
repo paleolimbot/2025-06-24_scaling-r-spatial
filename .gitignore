@@ -4,3 +4,4 @@ microsoft-buildings*
 .DS_Store
 .Rhistory
 data/
+.Rproj.user
