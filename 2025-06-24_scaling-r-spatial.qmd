@@ -36,12 +36,6 @@ library(sf)
 
 :::
 
-## Me in #rstats {background-image="bg/wb3.png"}
-
-Maintainer of s2, wk, geos, geoarrow, nanoarrow, tidypaleo, ggspatial, adbc(drivermanager|sqlite|postgresql)
-
-Contributor to qgisprocess, arrow, ggplot2
-
 ## Places to find/ask/share {background-image="bg/wb3.png"}
 
 I'm now a low-level nuts-and-bolts developer a few years removed from day-to-day usage. If you have questions, feedback, or expertise to share there are some great venues!
@@ -50,29 +44,109 @@ I'm now a low-level nuts-and-bolts developer a few years removed from day-to-day
 - [paleolimbot/2025-06-24_scaling-r-spatial](https://github.com/paleolimbot/2025-06-24_scaling-r-spatial)
 - `@paleolimbot` on Discord/BlueSky/Fosstodon/GitHub
 
-## Concepts: Make your data smaller (sooner) {background-image="bg/wb3.png"}
+I'll collect comments/questions in the chat here
+
+## Concepts: Make your data smaller {background-image="bg/wb3.png"}
 
 Often data is distributed in bulk but only a small portion is needed for an analysis. Most readers will let you provide a bounding box or SQL query to limit the data that has to be dealt with in memory.
 
+## Concepts: Make your data smaller {background-image="bg/wb4.png"}
+
+::: {style="text-align: center;"}
+
+![](bg/read-less-1.png)
+
+:::
+
+## Concepts: Make your data smaller {background-image="bg/wb4.png"}
+
+::: {style="text-align: center;"}
+
+![](bg/read-less-2.png)
+
+:::
+
+## Concepts: Look for the spatial join {background-image="bg/wb3.png"}
+
+When your analysis must consider the interaction between every feature in one layer and every feature in another layer, your analysis can probably be phrased as a spatial join. Look for it! Joins are optimized in sf, databases, and elsewhere, and effectively used spatial indexes.
+
+## Concepts: Look for the spatial join {background-image="bg/wb3.png"}
+
+::: {style="text-align: center;"}
+
+![](bg/join1.png)
+
+:::
+
+## Concepts: Look for the spatial join {background-image="bg/wb3.png"}
+
+::: {style="text-align: center;"}
+
+![](bg/join2.png)
+
+:::
+
+## Concepts: Look for the spatial join {background-image="bg/wb3.png"}
+
+Some join examples:
+
+- [Finding parking ticket hotspots in Phileldelphia](https://dewey.dunnington.ca/post/2022/profiling-point-in-polygon-joins-in-r/)
+- [Counting US buildings by zipcode](https://dewey.dunnington.ca/post/2024/wrangling-and-joining-130m-points-with-duckdb--the-open-source-spatial-stack/)
+- [Spatial Join section in Geocomputation with R](https://r.geocompx.org/spatial-operations.html?q=join#spatial-joining)
+
+## Concepts: Parallel processing {background-image="bg/wb4.png"}
+
+::: {style="text-align: center;"}
+
+![](bg/parallel.png)
+
+:::
+
+## Concepts: Parallel processing {background-image="bg/wb3.png"}
+
+![](bg/anim-resolute-.gif)
+
+## Concepts: Parallel processing {background-image="bg/wb3.png"}
+
+[Gridding 5 decades of Canadian ice coverage](https://github.com/richardsc/cis-weekly)
+
+- Data released weekly as shapefiles; however, format changed multiple times since the 70s
+- (original format) -> .gpkg -> target attributes rasterized as separate .tif files -> packed into a grid in NetCDF files
+- Rasterizing was done using the GDAL command line (run from R)
+
 ## Concepts: Spatial is not special {background-image="bg/wb4.png"}
 
-For every person there is trying to optimize spatial there's 50 people optimizing non-spatial. Using non-spatial tools/formats (e.g., Arrow and Parquet) can be much faster!
+For every person there is trying to optimize spatial there's 50 people optimizing non-spatial. Using non-spatial tools/formats (e.g., Databases, Vanilla Data Frames, Arrow, and Parquet) can be much faster!
 
 ![](bg/geometry-first.png)
 
-## Concepts: Spatial is not special {background-image="bg/wb3.png"}
+## Concepts: Spatial is not special {background-image="bg/wb4.png"}
 
-For every person there is trying to optimize spatial there's 50 people optimizing non-spatial. Using non-spatial tools/formats (e.g., Arrow and Parquet) can be much faster!
+For every person there is trying to optimize spatial there's 50 people optimizing non-spatial. Using non-spatial tools/formats (e.g., Databases, Vanilla Data Frames, Arrow, and Parquet) can be much faster!
 
 ![](bg/geometry-equal.png)
 
-## Concepts: Spatial is sort of special {background-image="bg/wb3.png"}
 
-...but also tools that special-case geometry (e.g., sf) can help you avoid mistakes and provide more compact syntax for common operations. Don't optimize too early!
+## Concepts: Spatial is not special {background-image="bg/wb4.png"}
 
-## Concepts: Look for the spatial join  {background-image="bg/wb3.png"}
+For every person there is trying to optimize spatial there's 50 people optimizing non-spatial. Using non-spatial tools/formats (e.g., Databases, Vanilla Data Frames, Arrow, and Parquet) can be much faster!
 
-When your analysis must consider the interaction between every feature in one layer and every feature in another layer, your analysis can probably be phrased as a spatial join. Look for it!
+```{r}
+#| echo: true
+#| output: false
+
+system.time(
+  arrow::read_parquet("data/ns-water_elevation.parquet")
+)
+#>    user  system elapsed
+#>   1.497   0.360   1.436
+```
+
+## Concepts: Spatial is sort of special {background-image="bg/wb4.png"}
+
+...but also tools that special-case geometry and/or the tools you know (e.g., sf) can help you avoid mistakes and provide more compact syntax for common operations. Don't optimize too early!
+
+![](bg/geometry-first.png)
 
 ## {background="#2556BB"}
 
@@ -234,6 +308,7 @@ system.time({
 
 ```{r}
 #| echo: true
+#| output: false
 library(vapour)
 library(geos)
 
@@ -249,6 +324,7 @@ system.time({
 
 ```{r strtreejoin}
 #| echo: true
+#| output: false
 system.time({
   index <- geos_strtree(elevation)
   lakes$geometry |>
@@ -265,18 +341,18 @@ system.time({
 
 ## Driving spatial databases {background-image="bg/wb3.png"}
 
-All the tools we've seen so far provide a way to do the computation directly using R packages.
-
 Many databases provide spatial functionality but add some complications:
 
 - How do you get data into the database?
 - How do you get data out of the database?
 - How do you phrase the operation you're hoping for in SQL?
+- Which DB framework (ADBC, DBI, dbplyr)
 
 ## Driving spatial databases: DuckDB {background-image="bg/wb3.png"}
 
 ```{r duckdb1}
 #| echo: true
+#| output: false
 library(duckdb)
 library(geoarrow)
 
@@ -289,30 +365,41 @@ dbExecute(con, "CALL register_geoarrow_extensions()")
 
 ```{r duckdb2}
 #| echo: true
-#| output: hide
-bounds_poly |> st_as_text()
+#| output: false
 dbExecute(
   con,
   glue::glue("
-   CREATE TABLE IF NOT EXISTS lakes AS
+   CREATE TABLE lakes AS
    SELECT * FROM 'data/ns-water_water-poly.fgb'
    WHERE ST_Intersects(geom, ST_GeomFromText('{bounds_poly |> st_as_text()}'))
   ")
 )
-dbExecute(con, "CREATE TABLE IF NOT EXISTS elevation AS SELECT * FROM 'data/ns-water_elevation.fgb'")
+dbExecute(con, "CREATE TABLE elevation AS SELECT * FROM 'data/ns-water_elevation.fgb'")
 ```
 
-## Driving spatial databases: DuckDB {background-image="bg/wb3.png"}
+## Driving spatial databases: DuckDB {background-image="bg/wb4.png"}
 
 ```{r duckdb3}
 #| echo: true
-#| output: hide
 dbGetQuery(con, "
   SELECT objectid, AVG(ST_Z(elevation.geom)) FROM lakes
   LEFT JOIN elevation ON ST_Intersects(lakes.geom, elevation.geom)
   GROUP BY objectid
 ")
 ```
+
+## Driving spatial databases: DuckDB {background-image="bg/wb4.png"}
+
+```{r duckdb4}
+#| echo: true
+library(dbplyr)
+library(geoarrow)
+
+tbl(con, sql("SELECT geom FROM lakes LIMIT 5")) |>
+  arrow::to_arrow() |>
+  st_as_sf()
+```
+
 
 ## Driving spatial databases: PostGIS {background-image="bg/wb3.png"}
 
@@ -339,28 +426,28 @@ con |> execute_adbc("DROP TABLE IF EXISTS elevation")
 #| echo: true
 con |>
   execute_adbc("CREATE TABLE lakes (objectid float8, geometry GEOMETRY)")
+con |>
+  execute_adbc("CREATE TABLE elevation (geometry GEOMETRY)")
+
 lakes |>
   as_tibble() |>
   transmute(objectid = OBJECTID, geometry = wk::as_wkb(geometry)) |>
   write_adbc(con, "lakes", mode = "append")
-```
 
-## Driving spatial databases: PostGIS {background-image="bg/wb3.png"}
-
-```{r adbc2}
-#| echo: true
-con |>
-  execute_adbc("CREATE TABLE elevation (geometry GEOMETRY)")
 tibble(geometry = elevation |> wk::as_wkb()) |>
   write_adbc(con, "elevation", mode = "append")
 ```
 
 ## Driving spatial databases: PostGIS {background-image="bg/wb3.png"}
 
+Create the index:
+
 ```{r adbc3}
 con |>
   execute_adbc("CREATE INDEX elevation_idx ON elevation USING gist(geometry)")
 ```
+
+Run the join!
 
 ```{r adbc4}
 con |>
@@ -374,11 +461,9 @@ con |>
 
 ## Driving spatial databases: Apache Sedona {background-image="bg/wb3.png"}
 
+Check out the [Sedona R Package documentation](https://sedona.apache.org/latest/api/rdocs/articles/apache-sedona.html)
 
-## Technologies: GeoArrow {background-image="bg/wb3.png"}
-
-## Technologies: GeoParquet {background-image="bg/wb3.png"}
-
+![](logo/sedona_logo.png)
 
 ## Scaling r-spatial {background-image="bg/wb3.png"}
 
@@ -391,6 +476,7 @@ con |>
 - Michael Sumner (hypertidy, vapour)
 - Josiah, Terri, Jesse @ R Consortium
 - Hadley Wickham
+- Contributors to r-spatial old and new!
 
 ## Getting the data {background-image="bg/wb3.png"}
 
