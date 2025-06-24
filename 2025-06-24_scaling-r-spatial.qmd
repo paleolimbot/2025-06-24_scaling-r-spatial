@@ -50,6 +50,30 @@ I'm now a low-level nuts-and-bolts developer a few years removed from day-to-day
 - [paleolimbot/2025-06-24_scaling-r-spatial](https://github.com/paleolimbot/2025-06-24_scaling-r-spatial)
 - `@paleolimbot` on Discord/BlueSky/Fosstodon/GitHub
 
+## Concepts: Make your data smaller (sooner) {background-image="bg/wb3.png"}
+
+Often data is distributed in bulk but only a small portion is needed for an analysis. Most readers will let you provide a bounding box or SQL query to limit the data that has to be dealt with in memory.
+
+## Concepts: Spatial is not special {background-image="bg/wb4.png"}
+
+For every person there is trying to optimize spatial there's 50 people optimizing non-spatial. Using non-spatial tools/formats (e.g., Arrow and Parquet) can be much faster!
+
+![](bg/geometry-first.png)
+
+## Concepts: Spatial is not special {background-image="bg/wb3.png"}
+
+For every person there is trying to optimize spatial there's 50 people optimizing non-spatial. Using non-spatial tools/formats (e.g., Arrow and Parquet) can be much faster!
+
+![](bg/geometry-equal.png)
+
+## Concepts: Spatial is sort of special {background-image="bg/wb3.png"}
+
+...but also tools that special-case geometry (e.g., sf) can help you avoid mistakes and provide more compact syntax for common operations. Don't optimize too early!
+
+## Concepts: Look for the spatial join  {background-image="bg/wb3.png"}
+
+When your analysis must consider the interaction between every feature in one layer and every feature in another layer, your analysis can probably be phrased as a spatial join. Look for it!
+
 ## {background="#2556BB"}
 
 <br/>
@@ -75,10 +99,21 @@ I'm now a low-level nuts-and-bolts developer a few years removed from day-to-day
 Say you have a data source and an area you're interested in:
 
 ```{r}
+#| echo: true
 bounds_lonlat <- st_bbox(
   c(xmin = -64.6418, xmax = -64.2868, ymin = 44.8473, ymax = 45.0151),
   crs = st_crs("OGC:CRS84")
 )
+```
+
+```{r}
+#| include: false
+elevation_crs <- st_layers("data/ns-water_elevation.fgb")$crs[[1]]
+
+# Transform the bounds to the CRS of the source
+bounds_poly <- bounds_lonlat |>
+  st_transform(elevation_crs) |>
+  st_as_sfc()
 ```
 
 ## sf for big(ger) data: filter-on-read {background-image="bg/wb3.png"}
@@ -107,6 +142,7 @@ system.time({
 
 ```{r}
 #| echo: true
+#| eval: false
 system.time({
   # Read the CRS of the source
   elevation_crs <- st_layers("data/ns-water_elevation.fgb")$crs[[1]]
@@ -131,10 +167,11 @@ system.time({
 Let's look at the interaction of the elevation points with some lakes.
 
 ```{r}
+#| echo: true
 lakes <- read_sf("data/ns-water_water-poly.fgb")
 lakes <- lakes |>
   filter(st_intersects(lakes, bounds_poly[[1]], sparse = FALSE)) |>
-  st_transform(st_crs(elevation))
+  st_transform(elevation_crs)
 ```
 
 ## sf for big(ger) data: `st_join()` {background-image="bg/wb3.png"}
@@ -160,6 +197,8 @@ system.time({
 What we want here is a join!
 
 ```{r}
+#| echo: true
+#| eval: false
 system.time({
   lakes |>
     mutate(row_id = row_number()) |>
@@ -176,6 +215,8 @@ system.time({
 Terra implements reads with extents:
 
 ```{r}
+#| echo: true
+#| eval: false
 library(terra)
 
 system.time({
@@ -192,6 +233,7 @@ system.time({
 ## Beyond sf: wk {background-image="bg/wb3.png"}
 
 ```{r}
+#| echo: true
 library(vapour)
 library(geos)
 
@@ -203,7 +245,10 @@ system.time({
 #>   6.633   1.162   8.539
 ```
 
-```{r}
+## Beyond sf: wk {background-image="bg/wb3.png"}
+
+```{r strtreejoin}
+#| echo: true
 system.time({
   index <- geos_strtree(elevation)
   lakes$geometry |>
@@ -218,9 +263,20 @@ system.time({
 #>   2.521   0.021   2.542
 ```
 
+## Driving spatial databases {background-image="bg/wb3.png"}
+
+All the tools we've seen so far provide a way to do the computation directly using R packages.
+
+Many databases provide spatial functionality but add some complications:
+
+- How do you get data into the database?
+- How do you get data out of the database?
+- How do you phrase the operation you're hoping for in SQL?
+
 ## Driving spatial databases: DuckDB {background-image="bg/wb3.png"}
 
-```{r}
+```{r duckdb1}
+#| echo: true
 library(duckdb)
 library(geoarrow)
 
@@ -229,18 +285,28 @@ dbExecute(con, "LOAD spatial")
 dbExecute(con, "CALL register_geoarrow_extensions()")
 ```
 
-```{r}
+## Driving spatial databases: DuckDB {background-image="bg/wb3.png"}
+
+```{r duckdb2}
+#| echo: true
+#| output: hide
 bounds_poly |> st_as_text()
 dbExecute(
   con,
-  glue::glue("CREATE TABLE IF NOT EXISTS lakes AS
+  glue::glue("
+   CREATE TABLE IF NOT EXISTS lakes AS
    SELECT * FROM 'data/ns-water_water-poly.fgb'
-   WHERE ST_Intersects(geom, ST_GeomFromText('{bounds_poly |> st_as_text()}'))")
+   WHERE ST_Intersects(geom, ST_GeomFromText('{bounds_poly |> st_as_text()}'))
+  ")
 )
 dbExecute(con, "CREATE TABLE IF NOT EXISTS elevation AS SELECT * FROM 'data/ns-water_elevation.fgb'")
 ```
 
-```{r}
+## Driving spatial databases: DuckDB {background-image="bg/wb3.png"}
+
+```{r duckdb3}
+#| echo: true
+#| output: hide
 dbGetQuery(con, "
   SELECT objectid, AVG(ST_Z(elevation.geom)) FROM lakes
   LEFT JOIN elevation ON ST_Intersects(lakes.geom, elevation.geom)
@@ -248,9 +314,10 @@ dbGetQuery(con, "
 ")
 ```
 
-## Driving spatial databases: ADBC + PostGIS {background-image="bg/wb3.png"}
+## Driving spatial databases: PostGIS {background-image="bg/wb3.png"}
 
-```{r}
+```{r adbc0}
+#| echo: true
 library(adbcdrivermanager)
 
 con <- adbc_database_init(
@@ -260,34 +327,42 @@ con <- adbc_database_init(
   adbc_connection_init()
 ```
 
-## Driving spatial databases: ADBC + PostGIS {background-image="bg/wb3.png"}
-
 ```{r}
+#| include: false
+con |> execute_adbc("DROP TABLE IF EXISTS lakes")
+con |> execute_adbc("DROP TABLE IF EXISTS elevation")
+```
+
+## Driving spatial databases: PostGIS {background-image="bg/wb3.png"}
+
+```{r adbc1}
+#| echo: true
 con |>
-  execute_adbc("CREATE TABLE IF NOT EXISTS lakes (objectid float8, geometry GEOMETRY)")
+  execute_adbc("CREATE TABLE lakes (objectid float8, geometry GEOMETRY)")
 lakes |>
   as_tibble() |>
   transmute(objectid = OBJECTID, geometry = wk::as_wkb(geometry)) |>
   write_adbc(con, "lakes", mode = "append")
 ```
 
-## Driving spatial databases: ADBC + PostGIS {background-image="bg/wb3.png"}
+## Driving spatial databases: PostGIS {background-image="bg/wb3.png"}
 
-```{r}
+```{r adbc2}
+#| echo: true
 con |>
-  execute_adbc("CREATE TABLE IF NOT EXISTS elevation (geometry GEOMETRY)")
+  execute_adbc("CREATE TABLE elevation (geometry GEOMETRY)")
 tibble(geometry = elevation |> wk::as_wkb()) |>
   write_adbc(con, "elevation", mode = "append")
 ```
 
-## Driving spatial databases: ADBC + PostGIS {background-image="bg/wb3.png"}
+## Driving spatial databases: PostGIS {background-image="bg/wb3.png"}
 
-```{r}
+```{r adbc3}
 con |>
   execute_adbc("CREATE INDEX elevation_idx ON elevation USING gist(geometry)")
 ```
 
-```{r}
+```{r adbc4}
 con |>
   read_adbc("
     SELECT objectid, AVG(ST_Z(elevation.geometry)) FROM lakes
@@ -297,63 +372,25 @@ con |>
   as_tibble()
 ```
 
-## foofy
+## Driving spatial databases: Apache Sedona {background-image="bg/wb3.png"}
 
-:::: {.columns}
 
-::: {.column width="50%"}
+## Technologies: GeoArrow {background-image="bg/wb3.png"}
 
-Spherely array:
+## Technologies: GeoParquet {background-image="bg/wb3.png"}
 
-- Order is kept
-- In memory data structures
-- Requires explicit parallelization
-
-:::
-
-::: {.column width="50%"}
-
-DuckDB Geography:
-
-- Order is sometimes kept
-- Serialized data structures (can be slower)
-- Automatic parallelization
-
-:::
-
-::::
-
-## {background="#2556BB"}
-
-<br/>
-
-<br/>
-
-::: {style="text-align: center;"}
-
-### Using sf for bigger data
-
-<br/>
-
-### Partitioning
-
-<br/>
-
-### Joining
-
-:::
-
-## The Future
-
-- Better integration with `spatial` (e.g., `geog::GEOMETRY`)
-- Aggregators
-- Import/Export/Fix spherical geometry
-- Something else based on user experience?
 
 ## Scaling r-spatial {background-image="bg/wb3.png"}
 
 - [dewey.dunnington.ca/slides/rspatial2025](https://dewey.dunnington.ca/slides/rspatial2025)
 - {{< fa brands github >}} [paleolimbot/duckdb-geography](https://github.com/paleolimbot/2025-06-24_scaling-r-spatial)
+
+## Acknowledgements {background-image="bg/wb3.png"}
+
+- Edzer Pebezma (sf)
+- Michael Sumner (hypertidy, vapour)
+- Josiah, Terri, Jesse @ R Consortium
+- Hadley Wickham
 
 ## Getting the data {background-image="bg/wb3.png"}
 
