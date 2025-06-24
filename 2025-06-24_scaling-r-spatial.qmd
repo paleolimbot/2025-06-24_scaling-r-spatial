@@ -443,20 +443,25 @@ tibble(geometry = elevation |> wk::as_wkb()) |>
 Create the index:
 
 ```{r adbc3}
+#| echo: true
 con |>
   execute_adbc("CREATE INDEX elevation_idx ON elevation USING gist(geometry)")
 ```
 
+## Driving spatial databases: PostGIS {background-image="bg/wb3.png"}
+
 Run the join!
 
 ```{r adbc4}
+#| echo: true
 con |>
   read_adbc("
     SELECT objectid, AVG(ST_Z(elevation.geometry)) FROM lakes
     LEFT JOIN elevation ON ST_Intersects(lakes.geometry, elevation.geometry)
     GROUP BY objectid
   ") |>
-  as_tibble()
+  as_tibble() |>
+  head(5)
 ```
 
 ## Driving spatial databases: Apache Sedona {background-image="bg/wb3.png"}
@@ -468,7 +473,7 @@ Check out the [Sedona R Package documentation](https://sedona.apache.org/latest/
 ## Scaling r-spatial {background-image="bg/wb3.png"}
 
 - [dewey.dunnington.ca/slides/rspatial2025](https://dewey.dunnington.ca/slides/rspatial2025)
-- {{< fa brands github >}} [paleolimbot/duckdb-geography](https://github.com/paleolimbot/2025-06-24_scaling-r-spatial)
+- {{< fa brands github >}} [paleolimbot/2025-06-24_scaling-r-spatial](https://github.com/paleolimbot/2025-06-24_scaling-r-spatial)
 
 ## Acknowledgements {background-image="bg/wb3.png"}
 
